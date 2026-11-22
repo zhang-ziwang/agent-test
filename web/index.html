@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SimpleAgent · 局域网控制台</title>
+<style>
+:root{
+  --bg:#111318; --panel:#191d25; --panel2:#212731; --border:#2d3340;
+  --text:#e7eaf0; --muted:#98a0ae; --accent:#7aa2f7; --ok:#5dcaa5; --warn:#ef9f27; --bad:#f09595;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+button,input{font:inherit}
+.app{max-width:1180px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px;min-height:100vh}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px}
+h1{font-size:18px;font-weight:500;margin:0}
+.sub{color:var(--muted);font-size:13px}
+.badge{display:inline-block;padding:2px 9px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--ok)}
+
+.auth-panel{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.auth-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-width:0}
+.auth-card h2{font-size:13px;font-weight:500;margin:0 0 8px;color:var(--muted)}
+.auth-card p{margin:0 0 12px;font-size:12px;color:var(--muted)}
+.auth-card button{padding:8px 14px;background:var(--accent);color:#0d1220;border:0;border-radius:8px;cursor:pointer;font-weight:500}
+.keybox{display:none;gap:8px;align-items:center;margin-top:10px;padding:9px 10px;background:#10141b;border:1px solid var(--border);border-radius:8px}
+.keybox.show{display:flex}
+.keybox code{flex:1;min-width:0;font-size:12px;word-break:break-all;color:var(--ok)}
+.keybox button{padding:4px 10px;font-size:12px;font-weight:400;background:transparent;color:var(--muted);border:1px solid var(--border)}
+.keyrow{display:flex;gap:8px}
+.keyrow input{flex:1;min-width:0;padding:9px 11px;background:#10141b;color:var(--text);border:1px solid var(--border);border-radius:8px;outline:none;font-size:13px}
+.keyrow input:focus{border-color:var(--accent)}
+.status{margin-top:10px;font-size:12px;color:var(--warn)}
+.status.ok{color:var(--ok)}
+.status.bad{color:var(--bad)}
+.hint{color:var(--muted);font-size:12px;margin:8px 0 0}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;flex:1;min-height:0}
+.chat{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:520px;overflow:hidden}
+.messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;flex-direction:column;max-width:88%}
+.msg.user{align-self:flex-end;align-items:flex-end}
+.msg.assistant{align-self:flex-start;align-items:flex-start}
+.bubble{padding:10px 14px;border-radius:12px;white-space:pre-wrap;word-break:break-word;background:var(--panel2);border:1px solid var(--border)}
+.msg.user .bubble{background:#2a3b63;border-color:#3a5188}
+.trace{margin-top:6px;font-size:12px;color:var(--muted);max-width:100%}
+.trace summary{cursor:pointer;outline:none}
+.trace pre{margin:6px 0 0;padding:10px;background:#10141b;border:1px solid var(--border);border-radius:8px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:#b8c2d4;font-size:12px}
+.composer{display:flex;gap:10px;padding:14px;border-top:1px solid var(--border);background:var(--panel)}
+.composer input{flex:1;padding:10px 12px;background:#10141b;color:var(--text);border:1px solid var(--border);border-radius:8px;outline:none}
+.composer input:focus{border-color:var(--accent)}
+.composer button,.ghost{padding:10px 16px;background:var(--accent);color:#0d1220;border:0;border-radius:8px;cursor:pointer;font-weight:500}
+.composer button:disabled{opacity:.55;cursor:not-allowed}
+.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);font-weight:400;padding:5px 11px;font-size:12px}
+aside{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+.panel h2{font-size:13px;font-weight:500;margin:0 0 12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li{padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;word-break:break-word}
+li.empty,li.done{color:var(--muted)}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv span:last-child{color:var(--ok);word-break:break-all}
+#lastJson{margin:0;padding:10px;background:#10141b;border:1px solid var(--border);border-radius:8px;color:#b8c2d4;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
+@media(max-width:860px){main{grid-template-columns:1fr}.auth-panel{grid-template-columns:1fr}.chat{min-height:420px}aside{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>SimpleAgent 控制台 <span class="badge">本地 Ollama</span></h1>
+      <div class="sub">JSON 决策 · 对话记忆 · 自动工具选择 · 待办事项 · API Key 鉴权</div>
+    </div>
+    <div class="sub">同一 Wi-Fi 下，其他设备访问：<strong id="lanUrl" style="color:var(--ok)">读取中…</strong></div>
+  </header>
+
+  <section class="auth-panel">
+    <div class="auth-card">
+      <h2>① 申请 API Key（任何设备都可以生成）</h2>
+      <p>点击后服务器生成一串随机字符，只把它的 SHA-256 哈希存进表；明文不会落盘。</p>
+      <button id="issueBtn">随机生成</button>
+      <div id="newKeyBox" class="keybox">
+        <code id="newKey"></code>
+        <button id="copyBtn">复制</button>
+      </div>
+      <p class="hint" id="issueHint">明文只显示这一次，请复制保存。生成后会自动填入右侧。</p>
+    </div>
+
+    <div class="auth-card">
+      <h2>② 输入并验证</h2>
+      <p>粘贴你的 API Key，服务器查表校验；通过后才能使用对话与待办功能。</p>
+      <div class="keyrow">
+        <input id="keyInput" type="password" placeholder="sk-..." autocomplete="off">
+        <button id="verifyBtn">验证</button>
+      </div>
+      <div id="authStatus" class="status">未验证 · 聊天已锁定</div>
+      <p class="hint">Key 会保存在本设备的浏览器里，下次自动验证。</p>
+    </div>
+  </section>
+
+  <main>
+    <section class="chat">
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <input id="input" placeholder="请先申请并验证 API Key" autocomplete="off" disabled>
+        <button id="sendBtn" disabled>发送</button>
+        <button class="ghost" id="clearBtn" title="只清空本设备的对话记忆">清空记忆</button>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2>待办事项 <button class="ghost" id="refreshBtn">刷新</button></h2>
+        <ul id="todos"><li class="empty">验证 API Key 后显示</li></ul>
+        <p class="hint">待办由服务器共享，同一 Wi-Fi 下所有设备看到的是同一份。</p>
+      </div>
+
+      <div class="panel">
+        <h2>运行信息</h2>
+        <div class="kv"><span>对话模型</span><span id="modelName">—</span></div>
+        <div class="kv"><span>局域网地址</span><span id="lanUrl2">—</span></div>
+        <div class="kv"><span>本设备会话</span><span id="sidShort">—</span></div>
+        <div class="kv"><span>已签发 Key</span><span id="keyCount">—</span></div>
+        <p class="hint">连不上时，在 Windows 防火墙里放行 Python，或确认两台设备在同一网段。</p>
+      </div>
+
+      <div class="panel">
+        <h2>最近一次 JSON 决策</h2>
+        <pre id="lastJson">等待对话…</pre>
+        <p class="hint">大脑返回 thought / tool / instruction，程序用 json.loads() 解析。</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+const SID_KEY = 'simple_agent_sid';
+const KEY_STORAGE = 'simple_agent_api_key';
+let sid = localStorage.getItem(SID_KEY);
+if (!sid) {
+  sid = 'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  localStorage.setItem(SID_KEY, sid);
+}
+document.getElementById('sidShort').textContent = sid.slice(0, 14) + '…';
+
+const box = document.getElementById('messages');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const keyInput = document.getElementById('keyInput');
+let apiKey = localStorage.getItem(KEY_STORAGE) || '';
+let authed = false;
+let busy = false;
+
+// 所有业务请求统一带上 Bearer key；签发/校验接口不需要 key，带了也无妨
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (apiKey) h['Authorization'] = 'Bearer ' + apiKey;
+  return h;
+}
+
+function setAuthStatus(text, cls) {
+  const el = document.getElementById('authStatus');
+  el.textContent = text;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function addMessage(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return { wrap, bubble };
+}
+
+function appendTrace(wrap, data) {
+  const d = document.createElement('details');
+  d.className = 'trace';
+  const s = document.createElement('summary');
+  s.textContent = '决策链路：' + (data.tool || '-') + ' · ' + (data.thought || '').slice(0, 46);
+  const pre = document.createElement('pre');
+  pre.textContent = JSON.stringify({
+    thought: data.thought, tool: data.tool,
+    instruction: data.instruction, observation: data.observation
+  }, null, 2);
+  d.appendChild(s);
+  d.appendChild(pre);
+  wrap.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ① 申请 key：服务端生成随机串并写入哈希表，明文只在响应里出现一次
+document.getElementById('issueBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('issueBtn');
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  try {
+    const r = await fetch('/api/key/issue', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ label: 'web' })
+    });
+    const d = await r.json();
+    if (d.api_key) {
+      document.getElementById('newKey').textContent = d.api_key;
+      document.getElementById('newKeyBox').classList.add('show');
+      keyInput.value = d.api_key;
+      document.getElementById('issueHint').textContent = '已生成并自动填入右侧，点「验证」即可启用。';
+      loadInfo();
+    } else {
+      document.getElementById('issueHint').textContent = '生成失败：' + (d.error || '未知错误');
+    }
+  } catch (e) {
+    document.getElementById('issueHint').textContent = '请求失败：' + e;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '随机生成';
+  }
+});
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const text = document.getElementById('newKey').textContent;
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) { /* 手动复制即可 */ }
+  ta.remove();
+  document.getElementById('copyBtn').textContent = '已复制';
+});
+
+// ② 输入 key 后让服务器查表校验
+async function verifyKey() {
+  const val = keyInput.value.trim();
+  if (!val) {
+    setAuthStatus('请先输入 API Key', 'bad');
+    return;
+  }
+  apiKey = val;
+  setAuthStatus('正在向服务器校验…');
+  try {
+    const r = await fetch('/api/key/verify', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ api_key: val })
+    });
+    const d = await r.json();
+    if (d.valid) {
+      authed = true;
+      localStorage.setItem(KEY_STORAGE, val);
+      setAuthStatus('验证通过 · 已解锁对话与待办', 'ok');
+      input.disabled = false;
+      sendBtn.disabled = busy;
+      input.placeholder = '试试：帮我算 15*37+228 / 添加待办：明天交论文 / 北京天气';
+      addMessage('assistant', 'API Key 验证通过，现在可以使用了。');
+      loadTodos();
+    } else {
+      authed = false;
+      apiKey = '';
+      localStorage.removeItem(KEY_STORAGE);
+      setAuthStatus('API Key 无效，聊天仍锁定', 'bad');
+      input.disabled = true;
+      sendBtn.disabled = true;
+    }
+  } catch (e) {
+    authed = false;
+    setAuthStatus('校验请求失败：' + e, 'bad');
+  }
+}
+document.getElementById('verifyBtn').addEventListener('click', verifyKey);
+keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyKey(); });
+
+async function loadTodos() {
+  if (!authed) return;
+  try {
+    const r = await fetch('/api/todos', { headers: authHeaders() });
+    if (r.status === 401) {
+      document.getElementById('todos').innerHTML = '<li class="empty">Key 已失效，请重新验证</li>';
+      return;
+    }
+    const d = await r.json();
+    const ul = document.getElementById('todos');
+    ul.textContent = '';
+    if (!d.todos || !d.todos.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '暂无待办，试试「添加待办：明天交论文」';
+      ul.appendChild(li);
+      return;
+    }
+    d.todos.forEach(t => {
+      const li = document.createElement('li');
+      if (t.done) li.className = 'done';
+      li.textContent = t.id + '. ' + (t.done ? '[已完成] ' : '') + t.item;
+      ul.appendChild(li);
+    });
+  } catch (e) {
+    document.getElementById('todos').textContent = '读取失败：' + e;
+  }
+}
+
+async function loadInfo() {
+  try {
+    const r = await fetch('/api/info');
+    const d = await r.json();
+    const url = 'http://' + d.lan_ip + ':' + d.port;
+    document.getElementById('lanUrl').textContent = url;
+    document.getElementById('lanUrl2').textContent = url;
+    document.getElementById('modelName').textContent = d.model;
+    document.getElementById('keyCount').textContent = d.keys + ' 把';
+  } catch (e) {
+    document.getElementById('lanUrl').textContent = '服务未响应';
+  }
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || busy || !authed) return;
+  busy = true;
+  sendBtn.disabled = true;
+  sendBtn.textContent = '思考中…';
+  input.value = '';
+  addMessage('user', text);
+  const pending = addMessage('assistant', '正在思考…');
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ message: text, session_id: sid })
+    });
+    const d = await r.json();
+    if (d.error) {
+      pending.bubble.textContent = '出错：' + d.error;
+    } else {
+      pending.bubble.textContent = d.reply;
+      appendTrace(pending.wrap, d);
+      document.getElementById('lastJson').textContent = JSON.stringify({
+        thought: d.thought, tool: d.tool, instruction: d.instruction
+      }, null, 2);
+      loadTodos();
+    }
+  } catch (e) {
+    pending.bubble.textContent = '请求失败：' + e;
+  } finally {
+    busy = false;
+    sendBtn.disabled = !authed;
+    sendBtn.textContent = '发送';
+    input.focus();
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+document.getElementById('refreshBtn').addEventListener('click', loadTodos);
+document.getElementById('clearBtn').addEventListener('click', async () => {
+  if (!authed) return;
+  await fetch('/api/clear', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ session_id: sid })
+  });
+  box.textContent = '';
+  addMessage('assistant', '已清空本设备的对话记忆（共享待办保留）。');
+});
+
+addMessage('assistant', '请先在上方①生成 API Key，再在②输入并验证，验证通过后即可对话。');
+loadInfo();
+if (apiKey) {
+  keyInput.value = apiKey;
+  verifyKey();
+}
+</script>
+</body>
+</html>
